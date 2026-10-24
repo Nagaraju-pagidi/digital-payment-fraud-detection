@@ -1,0 +1,312 @@
+{
+  "info": {
+    "name": "NexaPay ML Behaviour Tests",
+    "description": "Direct local tests for customer-isolated ML behaviour history. These are ML service tests; use the app/API for end-to-end payment flow.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8091"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 - Seed successful login location",
+      "description": "Successful logins from the actual login flow are also stored and participate in location-history checks.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/feedback",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "feedback"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"event_type\": \"LOGIN\",\n  \"occurred_at\": \"2026-10-18T20:00:00Z\",\n  \"latitude\": 17.385,\n  \"longitude\": 78.4867,\n  \"city\": \"Hyderabad\",\n  \"device_id\": \"phone-a\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2 - Risk-score login with impossible travel",
+      "description": "After seeding a successful Hyderabad login, score a Delhi login five minutes later. Expect stepUpRequired=true and impossibleTravel=true.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/score-login",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "score-login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-18T20:05:00Z\",\n  \"latitude\": 28.6139,\n  \"longitude\": 77.209,\n  \"city\": \"Delhi\",\n  \"device_id\": \"phone-a\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "1 - Seed approved Hyderabad event",
+      "description": "Stores one approved event for Customer A. Run this before impossible travel.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/feedback",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "feedback"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-18T20:00:00Z\",\n  \"amount\": 500,\n  \"latitude\": 17.385,\n  \"longitude\": 78.4867,\n  \"city\": \"Hyderabad\",\n  \"device_id\": \"phone-a\",\n  \"receiver\": \"friend@upi\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2 - Impossible travel Hyderabad to Delhi",
+      "description": "Expected: impossibleTravel true; distance approximately 1255 km in five minutes.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/score",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "score"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-18T20:05:00Z\",\n  \"amount\": 600,\n  \"latitude\": 28.6139,\n  \"longitude\": 77.209,\n  \"city\": \"Delhi\",\n  \"device_id\": \"new-phone\",\n  \"receiver\": \"new@upi\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3 - Customer isolation check",
+      "description": "Expected: personalHistoryEvents is zero for Customer B until its own history is seeded.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/score",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "score"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-B\",\n  \"occurred_at\": \"2026-10-18T20:05:00Z\",\n  \"amount\": 500,\n  \"latitude\": 28.6139,\n  \"longitude\": 77.209,\n  \"city\": \"Delhi\",\n  \"device_id\": \"phone-a\",\n  \"receiver\": \"friend@upi\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4 - Unusual hour for daytime user",
+      "description": "Seed daytime approved events for this customer first. Expected unusual-hour signal if there is no approved night activity.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/score",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "score"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-19T02:00:00Z\",\n  \"amount\": 650,\n  \"latitude\": 17.385,\n  \"longitude\": 78.4867,\n  \"city\": \"Hyderabad\",\n  \"device_id\": \"phone-a\",\n  \"receiver\": \"friend@upi\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "5 - New device and recipient",
+      "description": "Expected new device and new recipient signals for a customer with existing history.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/score",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "score"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-19T14:00:00Z\",\n  \"amount\": 500,\n  \"latitude\": 17.385,\n  \"longitude\": 78.4867,\n  \"city\": \"Hyderabad\",\n  \"device_id\": \"unknown-device\",\n  \"receiver\": \"unknown@upi\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "6 - Large payment with known context",
+      "description": "Illustrates contextual assessment; a high amount alone is not an automatic block.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/score",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "score"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-19T14:00:00Z\",\n  \"amount\": 20000,\n  \"latitude\": 17.385,\n  \"longitude\": 78.4867,\n  \"city\": \"Hyderabad\",\n  \"device_id\": \"phone-a\",\n  \"receiver\": \"friend@upi\",\n  \"outcome\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "7 - Do not learn blocked outcomes",
+      "description": "Expected stored=false and no baseline update.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/feedback",
+          "host": [
+            "localhost"
+          ],
+          "port": "8091",
+          "path": [
+            "feedback"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"customer_id\": \"customer-A\",\n  \"occurred_at\": \"2026-10-19T21:00:00Z\",\n  \"amount\": 500,\n  \"latitude\": 17.385,\n  \"longitude\": 78.4867,\n  \"city\": \"Hyderabad\",\n  \"device_id\": \"bad-device\",\n  \"receiver\": \"friend@upi\",\n  \"outcome\": \"BLOCKED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    }
+  ]
+}

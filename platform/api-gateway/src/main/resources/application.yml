@@ -1,0 +1,33 @@
+server:
+  port: 8060
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    loadbalancer:
+      cache:
+        ttl: 5s
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:FraudShield-Demo-Secret-Key-Change-Me-2026-Very-Long-Value}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    com.fraudshield: INFO

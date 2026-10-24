@@ -1,0 +1,51 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: fraud-service
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/fraud
+    username: ${DB_USER:fraud}
+    password: ${DB_PASSWORD:fraud123}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:FraudShield-Demo-Secret-Key-Change-Me-2026-Very-Long-Value}
+    expiry-hours: 12
+
+# Decision thresholds for the risk score
+fraudshield:
+  thresholds:
+    hold: 40          # score 40-69  -> HOLD (analyst review)
+    block: 70         # score >= 70  -> BLOCKED (refund)
+    freeze-score: 120 # score >= 120 -> also FREEZE the account
+    freeze-blocked-count: 3   # 3 blocked payments in 24h -> FREEZE
+  timezone: Asia/Kolkata
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.fraudshield: INFO

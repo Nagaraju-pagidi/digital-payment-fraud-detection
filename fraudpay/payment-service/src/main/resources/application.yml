@@ -1,0 +1,76 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: payment-service
+  threads:
+    virtual:
+      enabled: true          # Java 21 virtual threads
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/payments
+    username: ${DB_USER:fraud}
+    password: ${DB_PASSWORD:fraud123}
+  jpa:
+    hibernate:
+      ddl-auto: none         # Flyway owns the schema (db/migration)
+    open-in-view: false
+  flyway:
+    enabled: true
+  # OTP emails go to Mailpit (fake inbox: http://localhost:8025)
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    properties:
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 3000
+      mail.smtp.writetimeout: 3000
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:FraudShield-Demo-Secret-Key-Change-Me-2026-Very-Long-Value}
+    expiry-minutes: 30       # login session length (the website also logs out after 5 idle minutes)
+
+fraudpay:
+  bank-name: NexaPay
+  bank-code: NXPA
+  opening-balance: 50000       # demo money credited when an account is opened
+  mail-from: no-reply@nexapay.demo
+  otp:
+    validity-seconds: 300
+    max-attempts: 3
+    max-resends: 3
+  security:
+    max-login-failures: 5      # then the login is locked
+    login-lock-minutes: 15
+    max-pin-failures: 3        # then transactions are locked
+    pin-lock-minutes: 30
+  payee-cooling-minutes: 2     # real banks use 30 min - 24 h; short for the demo
+  limits:                      # bank rules (not fraud rules)
+    imps-per-transaction: 500000
+    neft-per-transaction: 1000000
+    netbanking-per-day: 1000000
+    upi-per-transaction: 100000
+    upi-per-day: 100000
+  saga-timeout-seconds: 60     # PROCESSING longer than this -> ON_HOLD
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+
+management:
+  health:
+    mail:
+      enabled: false
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+logging:
+  level:
+    com.fraudpay: INFO

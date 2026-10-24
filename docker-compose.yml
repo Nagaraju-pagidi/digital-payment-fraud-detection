@@ -1,0 +1,138 @@
+name: fraudshield
+
+x-java-env: &java-env
+  EUREKA_URL: http://eureka-server:8761/eureka/
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: fraud
+  DB_PASSWORD: fraud123
+  JWT_SECRET: ${JWT_SECRET:-NexaPay-Demo-Secret-Key-Change-Me-2026-Long-Random-Value}
+  TZ: Asia/Kolkata
+
+x-java-base: &java-base
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    eureka-server:
+      condition: service_started
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: fraud
+      POSTGRES_PASSWORD: fraud123
+      POSTGRES_DB: postgres
+      TZ: Asia/Kolkata
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraud -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:v1.20.0
+    ports: ["8025:8025", "1025:1025"]
+    restart: unless-stopped
+
+  eureka-server:
+    build:
+      context: .
+      dockerfile: docker/java.Dockerfile
+      args: { MODULE: platform/eureka-server }
+    image: fraudshield/eureka-server
+    ports: ["8761:8761"]
+    environment: { TZ: Asia/Kolkata }
+    mem_limit: 350m
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/java.Dockerfile
+      args: { MODULE: platform/api-gateway }
+    image: fraudshield/api-gateway
+    ports: ["8060:8060"]
+    environment: *java-env
+    depends_on: [eureka-server]
+    mem_limit: 450m
+    restart: unless-stopped
+
+  payment-service:
+    <<: *java-base
+    build:
+      context: .
+      dockerfile: docker/java.Dockerfile
+      args: { MODULE: fraudpay/payment-service }
+    image: fraudshield/payment-service
+    environment:
+      <<: *java-env
+      MAIL_HOST: mailpit
+      MAIL_PORT: "1025"
+      FRAUDPAY_ML_URL: http://ml-fraud-service:8091
+    ports: ["8081:8081"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+      mailpit: { condition: service_started }
+      ml-fraud-service: { condition: service_healthy }
+    mem_limit: 600m
+
+  fraud-service:
+    <<: *java-base
+    build:
+      context: .
+      dockerfile: docker/java.Dockerfile
+      args: { MODULE: fraudshield/fraud-service }
+    image: fraudshield/fraud-service
+    environment:
+      <<: *java-env
+      FRAUDSHIELD_PAYMENT_SERVICE_URL: http://payment-service:8081
+      FRAUDSHIELD_ML_URL: http://ml-fraud-service:8091
+    ports: ["8082:8082"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      eureka-server: { condition: service_started }
+      ml-fraud-service: { condition: service_started }
+    mem_limit: 600m
+
+  ml-fraud-service:
+    build: ./ml-fraud-service
+    image: nexapay/ml-fraud-service:1.0
+    environment:
+      MODEL_MODE: synthetic-demo
+      BEHAVIOUR_DB: /data/behaviour.db
+      TZ: Asia/Kolkata
+    volumes:
+      - mlbehaviour:/data
+    ports: ["8091:8091"] # Local Postman testing only; do not expose publicly in production.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  pay-app:
+    build: ./fraudpay/pay-app
+    image: fraudshield/pay-app
+    ports: ["5173:80"]
+    depends_on: [api-gateway]
+    restart: unless-stopped
+
+  control-center:
+    build: ./fraudshield/control-center
+    image: fraudshield/control-center
+    ports: ["5174:80"]
+    depends_on: [api-gateway]
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mlbehaviour:
